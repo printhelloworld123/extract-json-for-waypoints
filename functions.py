@@ -19,14 +19,15 @@ def text_downloader(file, name):
     href = f'<a href="data:file/txt;base64,{b64}" download="{new_filename}">Click this link to download the JSON file</a>'
     st.markdown(href,unsafe_allow_html=True)
     
+# Function to obtain missing columns
 def get_cols_missing_in_prod_file(prod_file):
     required_cols = ['external_id','name','street','lat','lon','stop_type']
     existing_cols = list(prod_file.columns)
     return list(filter(lambda x: x not in existing_cols, required_cols))
 
+# Function to obtain missing data in production file
 def get_missing_data(prepared_file, prod_file, ID_col):
     return list(ID for ID in set(prepared_file[ID_col]) if ID not in set(prod_file['id']))
-
 
 class ExtractStopSubset:
 
@@ -36,7 +37,8 @@ class ExtractStopSubset:
         self.ID_col_name = ID_col_name
         self.df_selected = pd.DataFrame(columns=self.prod.columns)
         self.d = {}
-
+    
+    # Prepare a file with all the required field details based on Production ID provided in the masterlist file
     def prepare_stop_subset_file(self):
         selected_ID = list(set(map(lambda x: int(x), list(self.df[self.ID_col_name]))))
         self.d = {self.prod.loc[i,'id'] : (self.prod.loc[i,'external_id'],
@@ -54,6 +56,7 @@ class ExtractStopSubset:
         self.df_selected['lon'] = list(map(lambda x: self.d[x][4] if x in self.d else 'NIL', selected_ID))
         self.df_selected['stop_type'] = list(map(lambda x: self.d[x][5] if x in self.d else 'NIL', selected_ID))
 
+        
 class CSVtoJSON:
 
     def __init__(self, df):
@@ -62,9 +65,8 @@ class CSVtoJSON:
     
     def get_num_waypoints(self):
         return len(self.lst_stop_details)
-
-      
     
+    # Convert CSV file to the desired JSON file format
     def prepare_JSON_file(self):
         self.df = pd.DataFrame.reset_index(self.df)
         self.df = self.df.drop(columns=['index'])
@@ -91,6 +93,7 @@ class CSVtoJSON:
 
         self.lst_stop_details += stop_details
     
+    # Display the map visualization of the waypoints
     def display_map(self):
         map_1 = folium.Map(location=[self.df.loc[0,'latitude'], self.df.loc[0,'longitude']], zoom_start=10)
         coords_lst = list(map(lambda lat, lon: (lat,lon), list(self.df['latitude']), list(self.df['longitude'])))
