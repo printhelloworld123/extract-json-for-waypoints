@@ -8,6 +8,26 @@ import streamlit as st
 import folium
 from streamlit_folium import folium_static
 
+# Function to allow download of prepared csv file as txt file #
+def text_downloader(file, name):
+    with open("test.json", "w", encoding="utf-8") as f:
+        json.dump(file, f, ensure_ascii=False, indent=2)
+    with open("test.json", "r", encoding="utf-8") as f:
+        string = f.read()
+    b64 = base64.b64encode(string.encode()).decode()
+    new_filename = name + "_{}.json".format(timestr)
+    href = f'<a href="data:file/txt;base64,{b64}" download="{new_filename}">Click this link to download the JSON file</a>'
+    st.markdown(href,unsafe_allow_html=True)
+    
+def get_cols_missing_in_prod_file(prod_file):
+    required_cols = ['external_id','name','street','lat','lon','stop_type']
+    existing_cols = list(prod_file.columns)
+    return list(filter(lambda x: x not in existing_cols, required_cols))
+
+def get_missing_data(prepared_file, prod_file, ID_col):
+    return list(ID for ID in set(prepared_file[ID_col]) if ID not in set(prod_file['id']))
+
+
 class ExtractStopSubset:
 
     def __init__(self, df, prod, ID_col_name):
@@ -15,16 +35,24 @@ class ExtractStopSubset:
         self.prod = prod
         self.ID_col_name = ID_col_name
         self.df_selected = pd.DataFrame(columns=self.prod.columns)
-    
+        self.d = {}
+
     def prepare_stop_subset_file(self):
-        selected_ID = list(map(lambda x: int(x), list(self.df[self.ID_col_name])))
-        
-        for i in range(len(self.prod)):
-            ID = self.prod.loc[i,'id']
-            if ID in selected_ID:
-                if ID not in list(self.df_selected['id']):
-                    self.df_selected = self.df_selected.append(self.prod.iloc[i])
-        
+        selected_ID = list(set(map(lambda x: int(x), list(self.df[self.ID_col_name]))))
+        self.d = {self.prod.loc[i,'id'] : (self.prod.loc[i,'external_id'],
+                                           self.prod.loc[i,'name'],
+                                           self.prod.loc[i,'street'],
+                                           self.prod.loc[i,'lat'],
+                                           self.prod.loc[i,'lon'] ,
+                                           self.prod.loc[i,'stop_type']) for i in range(len(self.prod))}
+
+        self.df_selected['id'] = selected_ID
+        self.df_selected['external_id'] = list(map(lambda x: self.d[x][0] if x in self.d else 'NIL', selected_ID))
+        self.df_selected['name'] = list(map(lambda x: self.d[x][1] if x in self.d else 'NIL', selected_ID))
+        self.df_selected['street'] = list(map(lambda x: self.d[x][2] if x in self.d else 'NIL', selected_ID))
+        self.df_selected['lat'] = list(map(lambda x: self.d[x][3] if x in self.d else 'NIL', selected_ID))
+        self.df_selected['lon'] = list(map(lambda x: self.d[x][4] if x in self.d else 'NIL', selected_ID))
+        self.df_selected['stop_type'] = list(map(lambda x: self.d[x][5] if x in self.d else 'NIL', selected_ID))
 
 class CSVtoJSON:
 
@@ -34,6 +62,8 @@ class CSVtoJSON:
     
     def get_num_waypoints(self):
         return len(self.lst_stop_details)
+
+      
     
     def prepare_JSON_file(self):
         self.df = pd.DataFrame.reset_index(self.df)
@@ -50,8 +80,8 @@ class CSVtoJSON:
                                 "stop_type": "type"}, inplace=True)
         
         stop_details = list(map(lambda x: {"address": self.df.loc[x,"address"],
-                                           "latitude": round(self.df.loc[x, "latitude"],7),
-                                           "longitude": round(self.df.loc[x, "longitude"],7), 
+                                           "latitude": round(float(self.df.loc[x, "latitude"]),7),
+                                           "longitude": round(float(self.df.loc[x, "longitude"]),7), 
                                            "name": self.df.loc[x, "name"], 
                                            "place_id": str(self.df.loc[x, "external_id"]), 
                                            "roadClosed": False, 
