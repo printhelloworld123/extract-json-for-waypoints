@@ -8,6 +8,8 @@ import streamlit as st
 import folium
 from streamlit_folium import folium_static
 
+timestr = time.strftime("%d%m%y")
+
 # Function to allow download of prepared csv file as txt file #
 def text_downloader(file, name):
     with open("test.json", "w", encoding="utf-8") as f:
